@@ -101,7 +101,16 @@ async def encrypt_for_client(server_message: str = Form(...)):
     await manager.broadcast(f"new-message:{encrypted_msg_b64}")
     await manager.broadcast(f"admin-hash:{server_msg_hash}")
 
-    return JSONResponse({"status": "Message stored and broadcasted."})
+    response_digest = hashes.Hash(hashes.SHA256())
+    response_digest.update(latest_admin_message.encode())
+    response_hash = response_digest.finalize().hex()
+
+    # Return both the encrypted message and the hash
+    return JSONResponse({
+        "status": "OK",
+        "encrypted_response": encrypted_msg_b64,
+        "hash": response_hash
+    })
 
 # Endpoint to handle hybrid decryption of client messages (AES key encrypted with RSA)
 @app.post("/decrypt")

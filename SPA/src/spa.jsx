@@ -29,31 +29,53 @@ const HybridEncryptor = () => {
 
     // Handle incoming WebSocket messages from admin
     socket.onmessage = (event) => {
-      const data = event.data;
-      if (data.startsWith("new-message:")) {
-        const encryptedMsg = data.replace("new-message:", "");
-        try {
-          // Attempt to decrypt using AES key
-          const decryptedMsg = decryptAES(encryptedMsg, keyRef.current);
-          setDecryptedResponse(decryptedMsg);
-          setStatus("New message from admin:");
-          if (adminHash) {
-          const localHash = CryptoJS.SHA256(decryptedMsg).toString();
-          if (localHash !== adminHash) {
-            console.warn("Hash mismatch! Message integrity compromised.");
+    const data = event.data;
+
+    if (data.startsWith("new-message:")) {
+      const encryptedMsg = data.replace("new-message:", "").trim();
+      
+      try {
+        const decryptedMsg = decryptAES(encryptedMsg, keyRef.current);
+
+        // Store decrypted response for display
+        setDecryptedResponse(decryptedMsg);
+
+        // Compute local hash
+        const localHash = CryptoJS.SHA256(decryptedMsg).toString();
+
+        // Compare only if adminHash has been received
+        if (adminHash) {
+          if (localHash === adminHash.trim()) {
+            setStatus("New message from admin (✔ hash verified)");
+          } else {
             setStatus("⚠️ Integrity check failed (hash mismatch).");
+            console.warn("Expected:", adminHash, "Got:", localHash);
           }
+        } else {
+          setStatus("New message from admin (waiting for hash...)");
         }
-        } catch (e) {
-          console.error("Decryption error:", e);
-          setStatus("Failed to decrypt WebSocket message.");
+
+      } catch (e) {
+        console.error("Decryption error:", e);
+        setStatus("Failed to decrypt WebSocket message.");
+      }
+    }
+
+    else if (data.startsWith("admin-hash:")) {
+      const hash = data.replace("admin-hash:", "").trim();
+      console.log("Received hash from server:", hash);
+      setAdminHash(hash);
+
+      // Optional: if decryptedResponse already exists, validate it now
+      if (decryptedResponse) {
+        const localHash = CryptoJS.SHA256(decryptedResponse).toString();
+        if (localHash === hash) {
+          setStatus("New message from admin (✔ hash verified)");
+        } else {
+          setStatus("⚠️ Integrity check failed (hash mismatch).");
         }
       }
-      else if (data.startsWith("admin-hash:")) {
-        const hash = data.replace("admin-hash:", "");
-        console.log("Received hash from server:", hash);
-        setAdminHash(hash);  // Save hash for integrity check
-      }
+    }
   };
 
     // Handle WebSocket error
