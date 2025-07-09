@@ -134,9 +134,6 @@ npm run dev
 
 ---
 
-## License
-
-This project is provided for educational and demonstration purposes. Please review the repository license for more information.
 
 ---
 
