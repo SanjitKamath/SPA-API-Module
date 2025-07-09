@@ -2,7 +2,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title="Admin Panel", layout="centered")
-st.title("🔐 Admin Message Sender")
+st.title("Admin Panel")
 
 # Placeholder for the message
 client_message = st.empty()
@@ -27,11 +27,11 @@ ws.onmessage = (event) => {{
 """, height=0)
 
 # Initial client message
-client_message.subheader("📩 Latest Client Message (Decrypted)")
+client_message.subheader("Latest Client Message")
 client_message.code("Waiting for client message...", language="text")
 
 # --- Static admin message input ---
-st.subheader("✉️ Send Message to Client (React App)")
+st.subheader("Send Message to Client")
 
 admin_message = st.text_area(
     "Enter message to send to frontend:",
@@ -50,9 +50,9 @@ if st.button("Send Message to Client"):
                 data={"server_message": admin_message}
             )
             if res.ok:
-                st.success("✅ Message submitted to backend successfully!")
+                st.success("Message sent")
                 st.session_state.admin_message = ""
             else:
-                st.error("❌ Failed to send message.")
+                st.error("Failed to send message.")
         except Exception as e:
-            st.error(f"❌ Backend error: {e}")
+            st.error(f"Backend error: {e}")

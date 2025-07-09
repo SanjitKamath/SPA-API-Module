@@ -15,8 +15,8 @@ const HybridEncryptor = () => {
     const socket = new WebSocket("ws://localhost:8000/ws");
 
     socket.onopen = () => {
-      console.log("✅ WebSocket connected");
-      setStatus("🔌 Connected to WebSocket");
+      console.log("WebSocket connected");
+      setStatus("Connection established");
     };
 
     socket.onmessage = (event) => {
@@ -26,22 +26,22 @@ const HybridEncryptor = () => {
         try {
           const decryptedMsg = decryptAES(encryptedMsg, keyRef.current);
           setDecryptedResponse(decryptedMsg);
-          setStatus("🔄 Auto-updated with new encrypted message from admin.");
+          setStatus("New message from admin:");
         } catch (e) {
           console.error("Decryption error:", e);
-          setStatus("❌ Failed to decrypt WebSocket message.");
+          setStatus("Failed to decrypt WebSocket message.");
         }
       }
     };
 
     socket.onerror = (err) => {
       console.error("WebSocket error:", err);
-      setStatus("❌ WebSocket error");
+      setStatus("WebSocket error");
     };
 
     socket.onclose = () => {
       console.warn("WebSocket connection closed");
-      setStatus("⚠️ WebSocket disconnected");
+      setStatus("WebSocket disconnected");
     };
 
     return () => {
@@ -98,16 +98,16 @@ const HybridEncryptor = () => {
 
       const decryptedResp = decryptAES(encryptedResp, keyRef.current);
       setDecryptedResponse(decryptedResp);
-      setStatus("✅ Admin message received.");
+      setStatus("Admin message received.");
     } catch (err) {
       console.error(err);
-      setStatus("❌ Error: " + err.message);
+      setStatus("Error: " + err.message);
     }
   };
 
   return (
     <div className="container">
-      <h2>🔐 Hybrid Encryption Client</h2>
+      <h2>Client Panel</h2>
 
       <div className="input-group">
         <input
@@ -129,7 +129,7 @@ const HybridEncryptor = () => {
 
       {decryptedResponse && (
         <>
-          <h3>🔓 Decrypted Admin Message</h3>
+          <h3>Admin message:</h3>
           <pre>{decryptedResponse}</pre>
         </>
       )}
