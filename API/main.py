@@ -80,6 +80,11 @@ async def encrypt_for_client(server_message: str = Form(...)):
     if not client_aes_key:
         return JSONResponse({"error": "Client AES key not available yet."}, status_code=400)
 
+    #Hash the server message to ensure integrity
+    digest = hashes.Hash(hashes.SHA256())
+    digest.update(server_message.encode())
+    server_msg_hash = digest.finalize().hex()
+
     # Pad the admin message using PKCS7
     padder = padding.PKCS7(128).padder()
     padded_msg = padder.update(server_message.encode()) + padder.finalize()
@@ -92,9 +97,9 @@ async def encrypt_for_client(server_message: str = Form(...)):
     # Encode encrypted message in base64 for transmission
     encrypted_msg_b64 = base64.b64encode(encrypted_msg).decode("utf-8")
 
-    # Broadcast both the encrypted message and plaintext to all connected WebSocket clients
+    # Broadcast both the encrypted message and hash to all connected WebSocket clients
     await manager.broadcast(f"new-message:{encrypted_msg_b64}")
-    await manager.broadcast(f"new-admin-plaintext:{server_message}")
+    await manager.broadcast(f"admin-hash:{server_msg_hash}")
 
     return JSONResponse({"status": "Message stored and broadcasted."})
 

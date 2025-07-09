@@ -12,6 +12,7 @@ const HybridEncryptor = () => {
   const [decryptedResponse, setDecryptedResponse] = useState("");    // Decrypted response from backend/admin
   const [encryptedResponseRaw, setEncryptedResponseRaw] = useState(""); // Encrypted response received from backend
   const [inputSize, setInputSize] = useState(0);                     // Byte size of user input (optional metric)
+  const [adminHash, setAdminHash] = useState("");                    // Hash of admin message for integrity check
 
   // Generate and store a 256-bit AES key (32 bytes) in a ref (constant across renders)
   const keyRef = useRef(CryptoJS.lib.WordArray.random(32));
@@ -36,12 +37,24 @@ const HybridEncryptor = () => {
           const decryptedMsg = decryptAES(encryptedMsg, keyRef.current);
           setDecryptedResponse(decryptedMsg);
           setStatus("New message from admin:");
+          if (adminHash) {
+          const localHash = CryptoJS.SHA256(decryptedMsg).toString();
+          if (localHash !== adminHash) {
+            console.warn("Hash mismatch! Message integrity compromised.");
+            setStatus("⚠️ Integrity check failed (hash mismatch).");
+          }
+        }
         } catch (e) {
           console.error("Decryption error:", e);
           setStatus("Failed to decrypt WebSocket message.");
         }
       }
-    };
+      else if (data.startsWith("admin-hash:")) {
+        const hash = data.replace("admin-hash:", "");
+        console.log("Received hash from server:", hash);
+        setAdminHash(hash);  // Save hash for integrity check
+      }
+  };
 
     // Handle WebSocket error
     socket.onerror = (err) => {
