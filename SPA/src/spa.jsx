@@ -1,3 +1,4 @@
+// spa.jsx
 import React, { useState, useEffect, useRef } from "react";
 import CryptoJS from "crypto-js";
 import "./App.css";
@@ -9,7 +10,7 @@ const HybridEncryptor = () => {
   const [encryptedResponseRaw, setEncryptedResponseRaw] = useState("");
   const [inputSize, setInputSize] = useState(0);
 
-  const keyRef = useRef(CryptoJS.lib.WordArray.random(32)); // AES-256 key
+  const keyRef = useRef(CryptoJS.lib.WordArray.random(32));
 
   useEffect(() => {
     const socket = new WebSocket("ws://localhost:8000/ws");
@@ -51,7 +52,11 @@ const HybridEncryptor = () => {
 
   const handleEncryptSendReceive = async () => {
     try {
-      const hash = CryptoJS.SHA256(message).toString();
+      const timestamp = Date.now().toString();
+      const nonce = CryptoJS.lib.WordArray.random(16).toString();
+
+      const messagePayload = message + timestamp + nonce;
+      const hash = CryptoJS.SHA256(messagePayload).toString();
 
       const encrypted = CryptoJS.AES.encrypt(message, keyRef.current, {
         mode: CryptoJS.mode.ECB,
@@ -85,20 +90,22 @@ const HybridEncryptor = () => {
         body: JSON.stringify({
           encrypted_key: encryptedKey,
           encrypted_data: encryptedData,
-          hash: hash,
+          timestamp,
+          nonce,
+          hash,
         }),
       });
 
       const result = await response.json();
 
-      if (!response.ok) throw new Error(result?.detail || JSON.stringify(result));
+      if (!response.ok) throw new Error(result?.error || JSON.stringify(result));
 
       const encryptedResp = result.encrypted_response;
       setEncryptedResponseRaw(encryptedResp);
 
       const decryptedResp = decryptAES(encryptedResp, keyRef.current);
       setDecryptedResponse(decryptedResp);
-      setStatus("Admin message received.");
+      setStatus("Sent successfully");
     } catch (err) {
       console.error(err);
       setStatus("Error: " + err.message);
@@ -108,7 +115,6 @@ const HybridEncryptor = () => {
   return (
     <div className="container">
       <h2>Client Panel</h2>
-
       <div className="input-group">
         <input
           type="text"
@@ -124,9 +130,7 @@ const HybridEncryptor = () => {
           Fetch Admin Message
         </button>
       </div>
-
       <div className="status">{status}</div>
-
       {decryptedResponse && (
         <>
           <h3>Admin message:</h3>
