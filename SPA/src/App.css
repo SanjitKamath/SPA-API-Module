@@ -1,0 +1,127 @@
+:root {
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 1.5;
+  color-scheme: light dark;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  color: #000000;
+  background-color: #ffffff;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 2rem;
+  background-color: #ffffff;
+  color: #000000;
+}
+
+#root {
+  width: 100%;
+  max-width: 720px;
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 2rem;
+  text-align: center;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+/* Title */
+h2 {
+  font-size: 2rem;
+  margin-bottom: 1.5rem;
+  color: #000000;
+}
+
+/* Input + Button group */
+.input-group {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 1rem;
+}
+
+/* Text Input */
+.text-input {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  border: 1px solid #000000;
+  border-radius: 8px;
+  background-color: #ffffff;
+  color: #000000;
+}
+
+/* Button */
+.send-button {
+  padding: 0.75rem 1.5rem;
+  background-color: #0078cc;
+  color: white;
+  border: none;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.send-button:hover {
+  background-color: #005f99;
+}
+
+/* Info and Response */
+.info,
+.response {
+  margin-top: 1rem;
+  text-align: left;
+  color: #000000;
+}
+
+.response pre {
+  background-color: #f3f3f3;
+  padding: 0.75rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Dark mode override */
+@media (prefers-color-scheme: dark) {
+  :root {
+    background-color: #1a1a1a;
+    color: #ffffff;
+  }
+
+  body {
+    background-color: #ffffff;
+    color: #000000;
+  }
+
+  #root {
+    background: #87fdff;
+    color: #000000;
+  }
+
+  .text-input {
+    background-color: #33ebff;
+    color: #000000;
+    border: 1px solid #888;
+  }
+
+  .send-button {
+    background-color: #5acbff;
+  }
+
+  .send-button:hover {
+    background-color: #00b3ff;
+  }
+
+  .response pre {
+    background-color: #ffffff;
+    color: #000000;
+  }
+}
