@@ -1,125 +1,151 @@
-// App.jsx
-
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import CryptoJS from "crypto-js";
-import "./App.css";
 
-// React component for hybrid RSA-AES communication
+// Utility functions for PEM and ArrayBuffer conversion
+function pemToArrayBuffer(pem) {
+  const b64 = pem.replace(/-----BEGIN PUBLIC KEY-----/, "")
+    .replace(/-----END PUBLIC KEY-----/, "")
+    .replace(/\s/g, "");
+  const binary = atob(b64);
+  const buffer = new ArrayBuffer(binary.length);
+  const view = new Uint8Array(buffer);
+  for (let i = 0; i < binary.length; i++) view[i] = binary.charCodeAt(i);
+  return buffer;
+}
+
+// GCM encryption using WebCrypto API
+async function encryptAESGCM(plaintext, key) {
+  const iv = window.crypto.getRandomValues(new Uint8Array(12));
+  const enc = new TextEncoder();
+  const encrypted = await window.crypto.subtle.encrypt(
+    {
+      name: "AES-GCM",
+      iv: iv,
+    },
+    key,
+    enc.encode(plaintext)
+  );
+  const combined = new Uint8Array(iv.length + encrypted.byteLength);
+  combined.set(iv, 0);
+  combined.set(new Uint8Array(encrypted), iv.length);
+  return btoa(String.fromCharCode(...combined));
+}
+
+// GCM decryption using WebCrypto API
+async function decryptAESGCM(base64CipherText, key) {
+  const combined = Uint8Array.from(atob(base64CipherText), (c) => c.charCodeAt(0));
+  const iv = combined.slice(0, 12);
+  const ciphertext = combined.slice(12);
+  const decrypted = await window.crypto.subtle.decrypt(
+    {
+      name: "AES-GCM",
+      iv: iv,
+    },
+    key,
+    ciphertext
+  );
+  return new TextDecoder().decode(decrypted);
+}
+
 const HybridEncryptor = () => {
-  // React state hooks
-  const [message, setMessage] = useState("");                        // Message input by user
-  const [status, setStatus] = useState("");                          // Status of encryption/decryption or connection
-  const [decryptedResponse, setDecryptedResponse] = useState("");    // Decrypted response from backend/admin
-  const [encryptedResponseRaw, setEncryptedResponseRaw] = useState(""); // Encrypted response received from backend
-  const [inputSize, setInputSize] = useState(0);                     // Byte size of user input (optional metric)
-  const [adminHash, setAdminHash] = useState("");                    // Hash of admin message for integrity check
+  const [message, setMessage] = useState("");
+  const [status, setStatus] = useState("WebSocket disconnected");
+  const [decryptedResponse, setDecryptedResponse] = useState("");
+  const aesCryptoKeyRef = useRef(null);
+  
+  // Refs to track state without causing re-renders
+  const lastAdminMessageRef = useRef({ message: "", hash: "" });
+  const adminHashRef = useRef("");
 
-  // Generate and store a 256-bit AES key (32 bytes) in a ref (constant across renders)
-  const keyRef = useRef(CryptoJS.lib.WordArray.random(32));
-
-  // Setup WebSocket connection on component mount
+  // Setup WebSocket connection - runs only once
   useEffect(() => {
     const socket = new WebSocket("ws://localhost:8000/ws");
 
-    // WebSocket connection established
     socket.onopen = () => {
       console.log("WebSocket connected");
       setStatus("Connection established");
     };
 
-    // Handle incoming WebSocket messages from admin
-    socket.onmessage = (event) => {
-    const data = event.data;
-
-    if (data.startsWith("new-message:")) {
-      const encryptedMsg = data.replace("new-message:", "").trim();
-      
-      try {
-        const decryptedMsg = decryptAES(encryptedMsg, keyRef.current);
-
-        // Store decrypted response for display
-        setDecryptedResponse(decryptedMsg);
-
-        // Compute local hash
-        const localHash = CryptoJS.SHA256(decryptedMsg).toString();
-
-        // Compare only if adminHash has been received
-        if (adminHash) {
-          if (localHash === adminHash.trim()) {
+    socket.onmessage = async (event) => {
+      const data = event.data;
+      if (data.startsWith("new-message:")) {
+        const encryptedMsg = data.replace("new-message:", "").trim();
+        try {
+          if (!aesCryptoKeyRef.current) {
+            setStatus("No AES key for decryption");
+            return;
+          }
+          const decryptedMsg = await decryptAESGCM(encryptedMsg, aesCryptoKeyRef.current);
+          
+          // Store message and hash for verification
+          const localHash = CryptoJS.SHA256(decryptedMsg).toString();
+          lastAdminMessageRef.current = { 
+            message: decryptedMsg, 
+            hash: localHash 
+          };
+          
+          setDecryptedResponse(decryptedMsg);
+          
+          // Verify against stored admin hash
+          if (adminHashRef.current && adminHashRef.current === localHash) {
             setStatus("New message from admin (✔ hash verified)");
           } else {
-            setStatus("⚠️ Integrity check failed (hash mismatch).");
-            console.warn("Expected:", adminHash, "Got:", localHash);
+            setStatus("New message from admin (awaiting verification)");
           }
-        } else {
-          setStatus("New message from admin (waiting for hash...)");
+        } catch (e) {
+          console.error("Decryption error:", e);
+          setStatus("Failed to decrypt WebSocket message.");
         }
-
-      } catch (e) {
-        console.error("Decryption error:", e);
-        setStatus("Failed to decrypt WebSocket message.");
-      }
-    }
-
-    else if (data.startsWith("admin-hash:")) {
-      const hash = data.replace("admin-hash:", "").trim();
-      console.log("Received hash from server:", hash);
-      setAdminHash(hash);
-
-      // Optional: if decryptedResponse already exists, validate it now
-      if (decryptedResponse) {
-        const localHash = CryptoJS.SHA256(decryptedResponse).toString();
-        if (localHash === hash) {
+      } else if (data.startsWith("admin-hash:")) {
+        const hash = data.replace("admin-hash:", "").trim();
+        adminHashRef.current = hash;
+        
+        // Verify against last message
+        if (lastAdminMessageRef.current.hash === hash) {
           setStatus("New message from admin (✔ hash verified)");
-        } else {
-          setStatus("⚠️ Integrity check failed (hash mismatch).");
         }
+      } else if (data.startsWith("new-client-message:")) {
+        const clientMsg = data.replace("new-client-message:", "").trim();
+        setDecryptedResponse(clientMsg);
+        setStatus("New client message received");
       }
-    }
-  };
+    };
 
-    // Handle WebSocket error
     socket.onerror = (err) => {
       console.error("WebSocket error:", err);
       setStatus("WebSocket error");
     };
 
-    // Handle WebSocket close event
     socket.onclose = () => {
       console.warn("WebSocket connection closed");
       setStatus("WebSocket disconnected");
     };
 
-    // Cleanup on component unmount
     return () => {
-      socket.close();
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.close();
+      }
     };
-  }, []);
+  }, []); // Empty dependency array = runs only once
 
-  // Function to handle full hybrid encryption and communication flow
+  // Hybrid encryption handler
   const handleEncryptSendReceive = async () => {
     try {
-      // Generate timestamp and nonce for integrity check
-      const timestamp = Date.now().toString();
-      const nonce = CryptoJS.lib.WordArray.random(16).toString();
+      // Generate AES key
+      const aesKey = await window.crypto.subtle.generateKey(
+        { name: "AES-GCM", length: 256 },
+        true,
+        ["encrypt", "decrypt"]
+      );
+      aesCryptoKeyRef.current = aesKey;
 
-      // Compute hash of message + timestamp + nonce for integrity
-      const messagePayload = message + timestamp + nonce;
-      const hash = CryptoJS.SHA256(messagePayload).toString();
+      // Export raw key
+      const keyBuffer = await window.crypto.subtle.exportKey("raw", aesKey);
 
-      // Encrypt user message with AES (ECB mode + PKCS7 padding)
-      const encrypted = CryptoJS.AES.encrypt(message, keyRef.current, {
-        mode: CryptoJS.mode.ECB,
-        padding: CryptoJS.pad.Pkcs7,
-      });
-      const encryptedData = CryptoJS.enc.Base64.stringify(encrypted.ciphertext);
-
-      // Fetch RSA public key from backend
+      // Fetch RSA public key
       const pubKeyRes = await fetch("http://localhost:8000/get-public-key/");
       const pubKeyJson = await pubKeyRes.json();
       const publicKeyPEM = pubKeyJson.public_key;
-
-      // Convert PEM to ArrayBuffer and import it for use with WebCrypto API
       const importedKey = await window.crypto.subtle.importKey(
         "spki",
         pemToArrayBuffer(publicKeyPEM),
@@ -128,20 +154,24 @@ const HybridEncryptor = () => {
         ["encrypt"]
       );
 
-      // Convert AES key (WordArray) to Uint8Array
-      const keyBytes = wordArrayToUint8Array(keyRef.current);
-
-      // Encrypt the AES key using RSA public key
+      // Encrypt AES key with RSA
       const encryptedAESKeyBuffer = await window.crypto.subtle.encrypt(
         { name: "RSA-OAEP" },
         importedKey,
-        keyBytes
+        keyBuffer
       );
-
-      // Convert encrypted key to base64
       const encryptedKey = btoa(String.fromCharCode(...new Uint8Array(encryptedAESKeyBuffer)));
 
-      // Send encrypted AES key, encrypted message, and integrity metadata to backend
+      // Encrypt message with AES-GCM
+      const encryptedData = await encryptAESGCM(message, aesKey);
+
+      // Prepare integrity metadata
+      const timestamp = Date.now().toString();
+      const nonce = CryptoJS.lib.WordArray.random(16).toString();
+      const messagePayload = message + timestamp + nonce;
+      const hash = CryptoJS.SHA256(messagePayload).toString();
+
+      // Send to backend
       const response = await fetch("http://localhost:8000/decrypt/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -155,15 +185,10 @@ const HybridEncryptor = () => {
       });
 
       const result = await response.json();
-
       if (!response.ok) throw new Error(result?.error || JSON.stringify(result));
 
-      // Store encrypted admin response (for display/debug if needed)
-      const encryptedResp = result.encrypted_response;
-      setEncryptedResponseRaw(encryptedResp);
-
-      // Decrypt admin response using original AES key
-      const decryptedResp = decryptAES(encryptedResp, keyRef.current);
+      // Decrypt admin response
+      const decryptedResp = await decryptAESGCM(result.encrypted_response, aesKey);
       setDecryptedResponse(decryptedResp);
       setStatus("Sent successfully");
     } catch (err) {
@@ -172,72 +197,37 @@ const HybridEncryptor = () => {
     }
   };
 
-  // --- JSX UI ---
   return (
-    <div className="container">
-      <h2>Client Panel</h2>
-      <div className="input-group">
+    <div className="panel-container">
+      <h1>Client Panel</h1>
+      
+      <div className="input-section">
         <input
           type="text"
           value={message}
-          onChange={(e) => {
-            setMessage(e.target.value);
-            setInputSize(new TextEncoder().encode(e.target.value).length); // Track input size in bytes
-          }}
+          onChange={(e) => setMessage(e.target.value)}
           placeholder="Type anything to trigger AES key exchange"
           className="text-input"
         />
-        <button onClick={handleEncryptSendReceive} className="send-button">
+        <button onClick={handleEncryptSendReceive} className="action-button">
           Fetch Admin Message
         </button>
       </div>
-
-      <div className="status">{status}</div>
-
+      
+      <div className="status-indicator">
+        {status}
+      </div>
+      
       {decryptedResponse && (
-        <>
+        <div className="message-container">
           <h3>Admin message:</h3>
-          <pre>{decryptedResponse}</pre>
-        </>
+          <div className="message-content">
+            {decryptedResponse}
+          </div>
+        </div>
       )}
     </div>
   );
 };
-
-// Utility function to convert PEM-formatted public key to ArrayBuffer
-function pemToArrayBuffer(pem) {
-  const b64 = pem.replace(/-----BEGIN PUBLIC KEY-----/, "")
-                 .replace(/-----END PUBLIC KEY-----/, "")
-                 .replace(/\s/g, "");
-  const binary = atob(b64);
-  const buffer = new ArrayBuffer(binary.length);
-  const view = new Uint8Array(buffer);
-  for (let i = 0; i < binary.length; i++) view[i] = binary.charCodeAt(i);
-  return buffer;
-}
-
-// Utility to convert CryptoJS WordArray to Uint8Array for use with WebCrypto
-function wordArrayToUint8Array(wordArray) {
-  const words = wordArray.words;
-  const sigBytes = wordArray.sigBytes;
-  const u8 = new Uint8Array(sigBytes);
-  for (let i = 0; i < sigBytes; i++) {
-    u8[i] = (words[i >>> 2] >>> (24 - (i % 4) * 8)) & 0xff;
-  }
-  return u8;
-}
-
-// Utility to decrypt AES-encrypted base64 string using CryptoJS
-function decryptAES(base64CipherText, aesKeyWordArray) {
-  const decrypted = CryptoJS.AES.decrypt(
-    { ciphertext: CryptoJS.enc.Base64.parse(base64CipherText) },
-    aesKeyWordArray,
-    {
-      mode: CryptoJS.mode.ECB,
-      padding: CryptoJS.pad.Pkcs7,
-    }
-  );
-  return decrypted.toString(CryptoJS.enc.Utf8);
-}
 
 export default HybridEncryptor;
