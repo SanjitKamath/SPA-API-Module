@@ -18,6 +18,10 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import padding, serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import padding as asym_padding
 
+#Imports necessary for preventing replay attacks
+import time
+from collections import deque
+
 # Custom RSA key generation function
 from RSA_Key_Gen import generate_rsa_keys  # Should return (private_key_bytes, public_key_bytes)
 
@@ -40,6 +44,13 @@ pr, pu = generate_rsa_keys()
 latest_admin_message = "No admin message yet."                    # Most recent message sent by the admin
 latest_decrypted_frontend_message = "No client message yet."     # Most recent message received and decrypted from the client
 client_aes_key: bytes = b""                                       # AES key shared by the client (sent encrypted with RSA)
+RECENT_NONCES = deque(maxlen=1000)  # Store last 1000 nonces (adjust as needed)
+NONCE_EXPIRY_SECONDS = 5 * 60  # 5 minutes
+
+def purge_expired_nonces():
+    now = time.time()
+    while RECENT_NONCES and RECENT_NONCES[0][1] < now - NONCE_EXPIRY_SECONDS:
+        RECENT_NONCES.popleft()
 
 # WebSocket connection manager class to track all active connections and broadcast messages
 class ConnectionManager:
@@ -126,6 +137,27 @@ async def hybrid_decrypt(request: Request):
         timestamp = data.get("timestamp")
         nonce = data.get("nonce")
         received_hash = data.get("hash")
+
+        try:
+            msg_time = float(timestamp) / 1000.0
+        except (ValueError, TypeError):
+            return JSONResponse({"error": "Invalid timestamp"}, status_code=400)
+
+        now = time.time()
+        # Check if timestamp is within allowed window
+        if abs(now - msg_time) > NONCE_EXPIRY_SECONDS:
+            return JSONResponse({"error": "Timestamp out of range"}, status_code=400)
+
+        # Purge expired nonces
+        purge_expired_nonces()
+
+        # Check for replayed nonce
+        for n, t in RECENT_NONCES:
+            if n == nonce:
+                return JSONResponse({"error": "Replay detected: nonce already used"}, status_code=400)
+
+        # Store this nonce and timestamp
+        RECENT_NONCES.append((nonce, msg_time))
 
         # Ensure all required fields are present
         if not all([encrypted_key_b64, encrypted_data_b64, timestamp, nonce, received_hash]):
