@@ -1,7 +1,6 @@
 fastapi
 uvicorn
-pydantic
-cryptography
-pycryptodome
-streamlit
 requests
+cryptography
+flask
+python-multipart
