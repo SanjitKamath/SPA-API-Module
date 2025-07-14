@@ -41,8 +41,6 @@ async def encrypt_for_client(server_message: str = Form(...)):
     global latest_admin_message, client_aes_key
     latest_admin_message = server_message
     print("start:", time.time())
-    if not client_aes_key:
-        return JSONResponse({"error": "Client AES key not available yet."}, status_code=400)
 
     nonce = os.urandom(12)
     cipher = Cipher(algorithms.AES(client_aes_key), modes.GCM(nonce), backend=default_backend())
@@ -56,7 +54,7 @@ async def encrypt_for_client(server_message: str = Form(...)):
     digest = hashes.Hash(hashes.SHA256())
     digest.update(server_message.encode())
     server_msg_hash = digest.finalize().hex()
-    print
+    print("end:", time.time())
     return JSONResponse({
         "status": "OK",
         "encrypted_response": encrypted_msg_b64,

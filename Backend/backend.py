@@ -46,7 +46,6 @@ def receive_file():
                 timeout=15
             )
             print(f"📤 FastAPI response status: {response.status_code}")
-            print(f"📤 FastAPI response body: {response.text}")
         except Exception as e:
             print(f"❌ Failed to send dummy message to FastAPI: {e}")
 
