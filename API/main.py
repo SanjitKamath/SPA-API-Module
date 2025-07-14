@@ -40,7 +40,7 @@ async def get_public_key():
 async def encrypt_for_client(server_message: str = Form(...)):
     global latest_admin_message, client_aes_key
     latest_admin_message = server_message
-    print("start:", time.time())
+
     if not client_aes_key:
         return JSONResponse({"error": "Client AES key not available yet."}, status_code=400)
 
@@ -56,7 +56,7 @@ async def encrypt_for_client(server_message: str = Form(...)):
     digest = hashes.Hash(hashes.SHA256())
     digest.update(server_message.encode())
     server_msg_hash = digest.finalize().hex()
-    print
+
     return JSONResponse({
         "status": "OK",
         "encrypted_response": encrypted_msg_b64,
@@ -125,29 +125,27 @@ async def hybrid_decrypt(request: Request):
 
         latest_decrypted_frontend_message = f"Received binary file: {file_name} ({file_type})"
 
-        # ✅ Send file to Flask backend
+        # ✅ Send file to Flask backend and get dummy message
         try:
-            print("✅ Reached file forwarding block")
-            response = requests.post(
+            print("📤 Forwarding file to Flask...")
+            flask_response = requests.post(
                 "http://localhost:9000/receive-decrypted-file",
                 files={"file": (file_name, decrypted_bytes, file_type)},
                 data={"filename": file_name, "filetype": file_type},
-                timeout=15  # Increased timeout
+                timeout=15
             )
-            print(f"📤 Sent file to Flask with status: {response.status_code}")
-            print(f"📤 Flask response: {response.text}")
+            print(f"📥 Flask response: {flask_response.text}")
+
+            # 🔄 Update admin message from Flask's response
+            if flask_response.status_code == 200:
+                flask_data = flask_response.json()
+                if "dummy_message" in flask_data:
+                    latest_admin_message = flask_data["dummy_message"]
+                    print(f"📝 Updated admin message: {latest_admin_message}")
         except Exception as e:
-            print(f"❌ Could not contact Flask backend: {e}")
+            print(f"❌ Flask error: {e}")
 
-        decrypted_json = {}
-        if file_type == "application/json":
-            try:
-                import json
-                decrypted_json = json.loads(decrypted_bytes.decode("utf-8"))
-            except:
-                decrypted_json = {"error": "Invalid JSON"}
-
-        # 🔐 Encrypt admin response back
+        # 🔐 Encrypt the LATEST admin message (now includes dummy)
         resp_nonce = os.urandom(12)
         cipher_resp = Cipher(algorithms.AES(aes_key), modes.GCM(resp_nonce), backend=default_backend())
         encryptor = cipher_resp.encryptor()
@@ -163,7 +161,7 @@ async def hybrid_decrypt(request: Request):
                 "name": file_name,
                 "type": file_type,
                 "size": len(decrypted_bytes),
-                "json_preview": decrypted_json or None
+                "json_preview": None  # Placeholder for JSON files
             }
         })
 

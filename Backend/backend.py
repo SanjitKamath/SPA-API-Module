@@ -30,34 +30,22 @@ def receive_file():
         file_path = os.path.join(UPLOAD_DIR, filename)
         file.save(file_path)
 
-        print("✅ File saved successfully")
-        print(f"   → Filename: {filename}")
-        print(f"   → Type:     {filetype}")
-        print(f"   → Size:     {os.path.getsize(file_path)} bytes")
-        print(f"   → Saved to: {file_path}")
+        print(f"✅ File saved: {filename} ({filetype})")
 
-        # ✅ Send dummy admin message
-        try:
-            dummy_message = '{"message": "Hello from Flask backend!"}'
-            print("📤 Sending dummy message to FastAPI /encrypt-message...")
-            response = requests.post(
-                "http://localhost:8000/encrypt-message",
-                data={"server_message": dummy_message},
-                timeout=15
-            )
-            print(f"📤 FastAPI response status: {response.status_code}")
-        except Exception as e:
-            print(f"❌ Failed to send dummy message to FastAPI: {e}")
+        # ✅ Return dummy message directly in response
+        dummy_message = '{"message": "Hello from Flask backend!"}'
+        print(f"📝 Generated dummy message: {dummy_message}")
 
         return jsonify({
-            "status": "✅ File received and message sent to main.py",
+            "status": "✅ File received and message set in main.py",
             "file_name": filename,
             "file_type": filetype,
-            "file_size": os.path.getsize(file_path)
+            "file_size": os.path.getsize(file_path),
+            "dummy_message": dummy_message  # Key addition
         })
 
     except Exception as e:
-        print(f"❌ Exception during file processing: {e}")
+        print(f"❌ Exception: {e}")
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
