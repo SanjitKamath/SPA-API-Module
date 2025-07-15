@@ -1,7 +1,5 @@
 from flask import Flask, request, jsonify
 import os
-import requests
-import time
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 20 * 1024 * 1024  # 20 MB max file size
