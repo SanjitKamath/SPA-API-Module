@@ -1,6 +1,6 @@
 # SPA-API-Module
 
-This project is a full-stack encrypted messaging system designed for secure communication between a client Single Page Application (SPA) and an admin backend. The repository contains both a Python backend (API) and a React+Vite frontend (SPA), along with a Streamlit-based admin dashboard.
+This project is a full-stack encrypted messaging system designed for secure communication between a client Single Page Application (SPA) and an admin backend. The repository contains both a Python backend (API), a FastAPI middleware and a React+Vite frontend (SPA).
 
 ---
 
@@ -9,16 +9,10 @@ This project is a full-stack encrypted messaging system designed for secure comm
 ### Backend (Python/FastAPI)
 - **End-to-End Encryption:** Uses hybrid RSA/AES cryptography for secure message transfer.
 - **FastAPI REST API:** Handles message encryption, decryption, and key exchange endpoints.
-- **WebSocket Support:** Real-time communication for broadcast messages.
 - **CORS Enabled:** Allows frontend apps to securely communicate with the API.
 - **RSA Key Generation:** Dynamically generates RSA key pairs for each session.
 - **Admin Message Broadcast:** Admin panel can push encrypted messages to all connected clients.
 - **Health Check Endpoint:** Easily verify server status.
-
-### Admin Panel (Streamlit)
-- **Modern Web UI:** Built using Streamlit for easy admin access.
-- **Send Encrypted Messages:** Admins can send messages to clients via the backend.
-- **View Client Messages:** Real-time updates of the latest client message.
 
 ### Frontend (React + Vite)
 - **Hybrid Encryption Flow:** Client generates an AES key, encrypts messages, and exchanges keys with the backend using RSA.
@@ -28,25 +22,6 @@ This project is a full-stack encrypted messaging system designed for secure comm
 
 ---
 
-## Project Structure
-
-```
-.
-├── API/                  # Python FastAPI backend and Streamlit admin panel
-│   ├── main.py           # FastAPI server implementation
-│   ├── app.py            # Streamlit admin panel
-│   ├── RSA_Key_Gen.py    # RSA key generation utility
-├── SPA/                  # React + Vite frontend client
-│   ├── package.json
-│   ├── src/
-│   │   ├── spa.jsx       # Main client logic
-│   │   └── ...
-│   └── ...
-├── requirements.txt      # Python dependencies
-└── README.md             # Project documentation (this file)
-```
-
----
 
 ## Setup & Installation
 
@@ -108,19 +83,19 @@ npm run dev
 
 ## Usage Workflow
 
-1. **Start the FastAPI backend and Streamlit admin panel.**
+1. **Start the Flask backend and FastAPI middleware.**
 2. **Start the SPA client.**
 3. **Client connects to backend and exchanges keys.**
-4. **Admin sends a message via the dashboard.**
-5. **Client receives encrypted messages in real time and can send encrypted responses.**
+4. **Admin sends a message post receiving client's message.**
+5. **Client receives admin response.**
 6. **All communication is encrypted using hybrid RSA/AES encryption.**
 
 ---
 
 ## Technology Stack
 
-- **Backend:** Python, FastAPI, Cryptography, PyCryptodome
-- **Admin Panel:** Streamlit
+- **Middleware:** Python, FastAPI, Cryptography, PyCryptodome
+- **Backend:** Python, Flask
 - **Frontend:** React, Vite, CryptoJS, WebSockets
 
 ---
