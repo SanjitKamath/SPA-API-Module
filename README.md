@@ -1,6 +1,6 @@
 # SPA-API-Module
 
-This project is a full-stack encrypted messaging system designed for secure communication between a client Single Page Application (SPA) and an admin backend. The repository contains both a Python backend (API), a FastAPI middleware and a React+Vite frontend (SPA).
+This project is a full-stack encrypted messaging system designed for secure communication between a client Single Page Application (SPA) and an admin backend. The repository contains a Python backend (API), a FastAPI middleware and a React+Vite frontend (SPA).
 
 ---
 
