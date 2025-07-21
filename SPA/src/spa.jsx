@@ -265,7 +265,7 @@ const HybridEncryptor = () => {
 
       {responseTime && (
         <div className="timing-box">
-          <strong>⏱️ Response time:</strong> {responseTime} seconds
+          <strong>Response time:</strong> {responseTime} seconds
         </div>
       )}
 
