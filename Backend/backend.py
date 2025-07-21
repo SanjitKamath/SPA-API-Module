@@ -1,7 +1,9 @@
 from flask import Flask, request, jsonify
 import os
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)  # Allow all origins
 app.config['MAX_CONTENT_LENGTH'] = 20 * 1024 * 1024  # 20 MB max file size
 
 UPLOAD_DIR = "./received_files"
@@ -10,6 +12,22 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 @app.route("/")
 def index():
     return "Welcome to the File Receiver API!"
+
+
+@app.route("/direct-data", methods=["POST"])
+def receive_direct_data():
+    try:
+        data = request.get_json(force=True)
+        print("📥 Direct data received:", data)
+
+        return jsonify({
+            "status": "success",
+            "echo": data,
+            "dummy_response": "Flask received your message cleanly."
+        })
+    except Exception as e:
+        print(f"❌ /direct-data error: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/receive-decrypted-file", methods=["POST"])
 def receive_file():

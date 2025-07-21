@@ -48,6 +48,9 @@ function arrayBufferToWordArray(ab) {
   return CryptoJS.lib.WordArray.create(words, u8.length);
 }
 
+/*--------------------------------------------------------------------------------------------------------------------------*/  
+/*--------------------------------------------------------------------------------------------------------------------------*/  
+
 const HybridEncryptor = () => {
   const [file, setFile] = useState(null);
   const [status, setStatus] = useState("");
@@ -67,6 +70,44 @@ const HybridEncryptor = () => {
     setFile(selected);
     setStatus(`Selected: ${selected.name} (${(selected.size / 1024).toFixed(1)} KB)`);
   };
+
+/*--------------------------------------------------------------------------------------------------------------------------*/  
+/*--------------------------------------------------------------------------------------------------------------------------*/  
+
+  const sendDirectData = async () => {
+    const payload = {
+      user: "ClientUser",
+      action: "Direct Test"
+    };
+
+    try {
+      const startTime = performance.now(); // ⏱️ Start timing
+
+      const res = await fetch("http://localhost:9000/direct-data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      const endTime = performance.now(); // ⏱️ End timing
+
+      const result = await res.json();
+
+      if (!res.ok) {
+        setStatus(`❌ Flask error: ${result?.error || "Unknown error"}`);
+        return;
+      }
+
+      setDecryptedResponse(result?.dummy_response || "❌ No message received.");
+      setStatus("✅ Direct data sent successfully.");
+      setResponseTime(((endTime - startTime) / 1000).toFixed(2)); 
+    } catch (err) {
+      console.error("❌ Fetch error:", err);
+      setStatus("❌ Failed to send direct data: " + err.message);
+    }
+  };
+/*--------------------------------------------------------------------------------------------------------------------------*/  
+/*--------------------------------------------------------------------------------------------------------------------------*/  
 
   const encryptAndSend = async () => {
     if (!file) {
@@ -180,6 +221,9 @@ const HybridEncryptor = () => {
     }
   };
 
+/*--------------------------------------------------------------------------------------------------------------------------*/  
+/*--------------------------------------------------------------------------------------------------------------------------*/  
+
   return (
     <div className="panel-container">
       <h1>Hybrid File Encryptor</h1>
@@ -187,6 +231,9 @@ const HybridEncryptor = () => {
         <input type="file" onChange={handleFileChange} />
         <button onClick={encryptAndSend} className="action-button">
           Encrypt & Send
+        </button>
+        <button onClick={sendDirectData} className="action-button">
+          Send Direct Data (No Encryption)
         </button>
       </div>
       <div className="status-indicator">
@@ -201,7 +248,7 @@ const HybridEncryptor = () => {
 
       {decryptedResponse && (
         <div className="response-box">
-          <h3>🔓 Decrypted Admin Response</h3>
+          <h3>Admin Response</h3>
           <pre>{decryptedResponse}</pre>
         </div>
       )}
