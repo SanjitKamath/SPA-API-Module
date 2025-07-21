@@ -1,9 +1,13 @@
 import React, { useState, useRef } from "react";
 import CryptoJS from "crypto-js";
 
-const MAX_FILE_SIZE_MB = 5;
+// Constants for file size validation
+const MAX_FILE_SIZE_MB = 0.01;
 const MAX_FILE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
+/* ----------------------------- Utility Functions ----------------------------- */
+
+// Converts a PEM-formatted RSA public key to an ArrayBuffer
 function pemToArrayBuffer(pem) {
   const b64 = pem.replace(/-----BEGIN PUBLIC KEY-----/, "")
     .replace(/-----END PUBLIC KEY-----/, "")
@@ -15,6 +19,7 @@ function pemToArrayBuffer(pem) {
   return buffer;
 }
 
+// Converts ArrayBuffer to base64 string
 function arrayBufferToBase64(buffer) {
   const bytes = new Uint8Array(buffer);
   let binary = "";
@@ -24,6 +29,7 @@ function arrayBufferToBase64(buffer) {
   return btoa(binary);
 }
 
+// Converts base64 string back to ArrayBuffer
 function base64ToArrayBuffer(base64) {
   const binary = atob(base64);
   const buffer = new ArrayBuffer(binary.length);
@@ -34,6 +40,7 @@ function base64ToArrayBuffer(base64) {
   return buffer;
 }
 
+// Converts ArrayBuffer to CryptoJS-compatible WordArray
 function arrayBufferToWordArray(ab) {
   const u8 = new Uint8Array(ab);
   const words = [];
@@ -48,16 +55,16 @@ function arrayBufferToWordArray(ab) {
   return CryptoJS.lib.WordArray.create(words, u8.length);
 }
 
-/*--------------------------------------------------------------------------------------------------------------------------*/  
-/*--------------------------------------------------------------------------------------------------------------------------*/  
+/* ----------------------------- Main Component ----------------------------- */
 
 const HybridEncryptor = () => {
-  const [file, setFile] = useState(null);
-  const [status, setStatus] = useState("");
-  const [decryptedResponse, setDecryptedResponse] = useState("");
-  const [responseTime, setResponseTime] = useState(null);  // ⏱️ new state
-  const aesCryptoKeyRef = useRef(null);
+  const [file, setFile] = useState(null);                     // Stores the selected file
+  const [status, setStatus] = useState("");                   // User-friendly status message
+  const [decryptedResponse, setDecryptedResponse] = useState(""); // Decrypted server response
+  const [responseTime, setResponseTime] = useState(null);     // Server response timing
+  const aesCryptoKeyRef = useRef(null);                       // Holds AES key for response decryption
 
+  // Handle file selection and validate file size
   const handleFileChange = (e) => {
     const selected = e.target.files[0];
     if (!selected) return;
@@ -71,9 +78,7 @@ const HybridEncryptor = () => {
     setStatus(`Selected: ${selected.name} (${(selected.size / 1024).toFixed(1)} KB)`);
   };
 
-/*--------------------------------------------------------------------------------------------------------------------------*/  
-/*--------------------------------------------------------------------------------------------------------------------------*/  
-
+  // Sends plain JSON data to backend (for testing or fallback purposes)
   const sendDirectData = async () => {
     const payload = {
       user: "ClientUser",
@@ -81,7 +86,7 @@ const HybridEncryptor = () => {
     };
 
     try {
-      const startTime = performance.now(); // ⏱️ Start timing
+      const startTime = performance.now(); // Start timer
 
       const res = await fetch("http://localhost:9000/direct-data", {
         method: "POST",
@@ -89,8 +94,7 @@ const HybridEncryptor = () => {
         body: JSON.stringify(payload)
       });
 
-      const endTime = performance.now(); // ⏱️ End timing
-
+      const endTime = performance.now();   // End timer
       const result = await res.json();
 
       if (!res.ok) {
@@ -100,15 +104,14 @@ const HybridEncryptor = () => {
 
       setDecryptedResponse(result?.dummy_response || "❌ No message received.");
       setStatus("✅ Direct data sent successfully.");
-      setResponseTime(((endTime - startTime) / 1000).toFixed(2)); 
+      setResponseTime(((endTime - startTime) / 1000).toFixed(2)); // Convert to seconds
     } catch (err) {
       console.error("❌ Fetch error:", err);
       setStatus("❌ Failed to send direct data: " + err.message);
     }
   };
-/*--------------------------------------------------------------------------------------------------------------------------*/  
-/*--------------------------------------------------------------------------------------------------------------------------*/  
 
+  // Encrypts file and AES key, sends to backend, and decrypts response
   const encryptAndSend = async () => {
     if (!file) {
       setStatus("Please select a file first.");
@@ -116,6 +119,7 @@ const HybridEncryptor = () => {
     }
 
     try {
+      // Generate AES-GCM key
       const aesKey = await window.crypto.subtle.generateKey(
         { name: "AES-GCM", length: 256 },
         true,
@@ -123,11 +127,14 @@ const HybridEncryptor = () => {
       );
       aesCryptoKeyRef.current = aesKey;
 
+      // Export raw AES key to be encrypted with RSA
       const rawKey = await window.crypto.subtle.exportKey("raw", aesKey);
 
+      // Fetch server’s RSA public key
       const pubKeyRes = await fetch("http://localhost:8000/get-public-key/");
       const { public_key } = await pubKeyRes.json();
 
+      // Import RSA public key for encryption
       const importedRSA = await window.crypto.subtle.importKey(
         "spki",
         pemToArrayBuffer(public_key),
@@ -136,6 +143,7 @@ const HybridEncryptor = () => {
         ["encrypt"]
       );
 
+      // Encrypt AES key using RSA
       const encryptedAESKey = await window.crypto.subtle.encrypt(
         { name: "RSA-OAEP" },
         importedRSA,
@@ -143,30 +151,32 @@ const HybridEncryptor = () => {
       );
       const encryptedAESKeyBase64 = arrayBufferToBase64(encryptedAESKey);
 
+      // Encrypt file using AES-GCM
       const fileBuffer = await file.arrayBuffer();
-
-      const iv = window.crypto.getRandomValues(new Uint8Array(12));
+      const iv = window.crypto.getRandomValues(new Uint8Array(12)); // 96-bit IV for AES-GCM
       const encrypted = await window.crypto.subtle.encrypt(
         { name: "AES-GCM", iv },
         aesKey,
         fileBuffer
       );
 
+      // Combine IV and ciphertext
       const combined = new Uint8Array(iv.length + encrypted.byteLength);
       combined.set(iv, 0);
       combined.set(new Uint8Array(encrypted), iv.length);
       const encryptedFileBase64 = arrayBufferToBase64(combined);
 
+      // Generate hash for integrity check (fileHex + timestamp + nonce)
       const timestamp = Date.now().toString();
       const nonce = CryptoJS.lib.WordArray.random(16).toString();
-
       const wordArray = arrayBufferToWordArray(fileBuffer);
       const hexString = CryptoJS.enc.Hex.stringify(wordArray);
       const payloadForHash = hexString + timestamp + nonce;
       const hash = CryptoJS.SHA256(payloadForHash).toString();
 
-      const startTime = performance.now();  // ⏱️ Start timing
+      const startTime = performance.now(); // ⏱️ Start measuring server response time
 
+      // Send encrypted payload to FastAPI server
       const res = await fetch("http://localhost:8000/decrypt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -182,22 +192,25 @@ const HybridEncryptor = () => {
       });
 
       const result = await res.json();
+
       if (!res.ok) {
         setStatus(`❌ Error: ${result?.error || "Unknown error"}`);
         return;
       }
 
+      // Parse server’s AES-GCM encrypted response
       const encryptedRespBase64 = result.encrypted_response;
       const encryptedRespBuffer = base64ToArrayBuffer(encryptedRespBase64);
-
       const respIv = encryptedRespBuffer.slice(0, 12);
       const respCiphertext = new Uint8Array(encryptedRespBuffer.slice(12, -16));
       const respTag = new Uint8Array(encryptedRespBuffer.slice(-16));
 
+      // Merge ciphertext and auth tag
       const encryptedData = new Uint8Array(respCiphertext.length + respTag.length);
       encryptedData.set(respCiphertext, 0);
       encryptedData.set(respTag, respCiphertext.length);
 
+      // Decrypt server's response using the same AES key
       const decryptedBuffer = await window.crypto.subtle.decrypt(
         {
           name: "AES-GCM",
@@ -207,13 +220,22 @@ const HybridEncryptor = () => {
         aesCryptoKeyRef.current,
         encryptedData
       );
+
+      const endTime = performance.now();  // ⏱️ Stop timer
+      setResponseTime(((endTime - startTime) / 1000).toFixed(2)); // Show in seconds
+
       const decoder = new TextDecoder();
       const plaintext = decoder.decode(decryptedBuffer);
 
-      const endTime = performance.now();  // ⏱️ Stop timing
-      setResponseTime(((endTime - startTime)/1000).toFixed(2));  // ⏱in seconds
+      // Try to parse JSON response or fallback to plaintext
+      try {
+        const parsed = JSON.parse(plaintext);
+        const messageOnly = parsed.message || parsed.dummy_message || plaintext;
+        setDecryptedResponse(messageOnly);
+      } catch (e) {
+        setDecryptedResponse(plaintext);
+      }
 
-      setDecryptedResponse(plaintext);
       setStatus("✅ Success: File sent and response decrypted.");
     } catch (err) {
       console.error("Encryption failed:", err);
@@ -221,12 +243,12 @@ const HybridEncryptor = () => {
     }
   };
 
-/*--------------------------------------------------------------------------------------------------------------------------*/  
-/*--------------------------------------------------------------------------------------------------------------------------*/  
+  /* ----------------------------- Render UI ----------------------------- */
 
   return (
     <div className="panel-container">
       <h1>Hybrid File Encryptor</h1>
+
       <div className="input-section">
         <input type="file" onChange={handleFileChange} />
         <button onClick={encryptAndSend} className="action-button">
@@ -236,6 +258,7 @@ const HybridEncryptor = () => {
           Send Direct Data (No Encryption)
         </button>
       </div>
+
       <div className="status-indicator">
         {status}
       </div>
