@@ -1,5 +1,3 @@
-# main.py (FastAPI with embedded backend.py logic for dummy response handling)
-
 from fastapi import FastAPI, Form, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
@@ -45,7 +43,6 @@ def handle_dummy_file_logic(file_name: str, file_type: str, decrypted_bytes: byt
 
     print(f"✅ File saved: {file_name} ({file_type})")
     dummy_message = {"message": "You have sent an encrypted file!"}
-    print(f"📝 Dummy message generated: {dummy_message}")
 
     return {
         "status": "✅ File received and processed",
@@ -62,7 +59,6 @@ def handle_dummy_file_logic_u(file_name: str, file_type: str, decrypted_bytes: b
 
     print(f"✅ File saved: {file_name} ({file_type})")
     dummy_message = {"message": "You have sent an unencrypted file!"}
-    print(f"📝 Dummy message generated: {dummy_message}")
 
     return {
         "status": "✅ File received and processed",
