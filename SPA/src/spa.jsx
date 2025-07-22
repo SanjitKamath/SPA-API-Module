@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import CryptoJS from "crypto-js";
 
-const MAX_FILE_SIZE_MB = 0.01;
+const MAX_FILE_SIZE_MB = 5;
 const MAX_FILE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
 function pemToArrayBuffer(pem) {
