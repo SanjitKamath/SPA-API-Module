@@ -4,7 +4,7 @@ import HybridEncryptor from "./spa";
 function App() {
   return (
     <div className="App">
-      <HybridEncryptor />
+      <HybridEncryptor/>
     </div>
   );
 }
