@@ -20,9 +20,9 @@ This project demonstrates end-to-end encryption and integrity assurance for file
 ## Project Structure
 
 ```
-├── frontend/
+├── SPA/
 │   └── spa.jsx              # Main React file encryption client
-├── backend/
+├── API/
 │   ├── main.py              # FastAPI app setup and routes
 │   ├── encryption_middleware.py  # Middleware for decrypting/verifying data
 │   └── RSA_Key_Gen.py       # Utility (assumed) for RSA key generation
