@@ -122,17 +122,6 @@ Access the app at [`https://localhost:3000`](https://localhost:3000)
 - Hash-based integrity verification (CryptoJS/SHA-256)
 - Custom header check: `"X-Encrypted-Request": "true"`
 
----
-
-## Performance Benchmarks
-
-| File Size | Encrypt Time | Decrypt Time | Roundtrip |
-|-----------|--------------|--------------|-----------|
-| 50 KB     | ~4ms         | ~3ms         | ~12ms     |
-| 1 MB      | ~40ms        | ~30ms        | ~95ms     |
-| 10 MB     | ~300ms       | ~280ms       | ~700ms    |
-
----
 
 ## Troubleshooting
 
