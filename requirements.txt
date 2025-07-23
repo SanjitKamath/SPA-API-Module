@@ -1,7 +1,4 @@
-fastapi
-uvicorn
-requests
-cryptography
-flask
-python-multipart
-uvloop
+fastapi==0.100.0
+uvicorn==0.23.2
+cryptography==41.0.3
+python-multipart==0.0.6
