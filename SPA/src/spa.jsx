@@ -6,6 +6,7 @@ import './App.css'
 const MAX_FILE_SIZE_MB = 5;
 const MAX_FILE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
+// Function to handle file encryption. It implements hybrid encryption i.e., both symmetric and asymmetric encryption
 const HybridEncryptor = () => {
   // React state variables
   const [file, setFile] = useState(null);
