@@ -83,6 +83,72 @@ p {
   margin-top: 0.5rem;
 }
 
+/* Upload Section Enhancements */
+.upload-section {
+  margin-top: 1rem;
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.file-input {
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  border: 2px dashed #ccc;
+  border-radius: 8px;
+  background-color: #f9f9f9;
+  cursor: pointer;
+  transition: border-color 0.3s ease, background-color 0.3s ease;
+}
+
+.file-input:hover {
+  border-color: #00aeff;
+  background-color: #f0f8ff;
+}
+
+.upload-button {
+  background-color: #00aeff;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.upload-button:hover {
+  background-color: #00b3ff;
+}
+
+/* Status Message */
+.status-message {
+  margin-top: 1rem;
+  font-weight: bold;
+  color: #333;
+}
+
+/* Encrypted Response Block */
+.response-block {
+  margin-top: 2rem;
+  text-align: left;
+  padding: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 10px;
+  background-color: #f5faff;
+}
+
+.encrypted-response {
+  background-color: #e0f7ff;
+  padding: 0.75rem;
+  border-radius: 6px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  font-family: monospace;
+  font-size: 0.9rem;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     color: #000000;
@@ -107,8 +173,18 @@ p {
   button:hover {
     background-color: #005f99;
   }
+
+  .response-block {
+    background-color: #e1f6ff;
+    border-color: #0078cc;
+  }
+
+  .encrypted-response {
+    background-color: #d4f0ff;
+  }
 }
 
+/* Input Section (for any extended inputs if reused) */
 .input-section {
   display: flex;
   flex-direction: column;

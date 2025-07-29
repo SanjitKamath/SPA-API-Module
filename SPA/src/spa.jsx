@@ -1,224 +1,216 @@
-import React, { useState, useRef } from "react";
-import CryptoJS from "crypto-js";
-import './App.css'
+import React, { useState, useEffect } from "react";
 
-// Constants for maximum file size validation
-const MAX_FILE_SIZE_MB = 5;
-const MAX_FILE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
-
-// Function to handle file encryption. It implements hybrid encryption i.e., both symmetric and asymmetric encryption
-const HybridEncryptor = () => {
-  // React state variables
+function HybridEncryptor() {
   const [file, setFile] = useState(null);
   const [status, setStatus] = useState("");
-  const [responseMessage, setResponseMessage] = useState("");
-  const [timeTaken, setTimeTaken] = useState(null);
+  const [rtt, setRtt] = useState(null);
+  const [serverResponse, setServerResponse] = useState(null);
+  const [publicKey, setPublicKey] = useState(null);
+  const [decryptedAdminMessage, setDecryptedAdminMessage] = useState(null);
 
-  // Refs for storing AES key and raw key buffer
-  const aesCryptoKeyRef = useRef(null);
-  const aesRawKeyRef = useRef(null);
+  useEffect(() => {
+    fetch("http://localhost:8000/get-public-key/")
+      .then(res => res.json())
+      .then(data => setPublicKey(data.public_key))
+      .catch(err => setStatus("❌ Failed to fetch public key: " + err.message));
+  }, []);
 
-  // Handle file selection and validate file size
-  const handleFileChange = (event) => {
-    const selected = event.target.files[0];
-    if (selected && selected.size > MAX_FILE_BYTES) {
-      setStatus(`File too large. Max: ${MAX_FILE_SIZE_MB} MB`);
-      setFile(null);
-    } else {
-      setFile(selected);
-    }
+  const toBase64 = async (buffer) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(new Blob([buffer]));
+    });
   };
 
-  // Convert PEM RSA public key string to binary ArrayBuffer
-  const pemToBinary = (pem) => {
-    const b64 = pem.replace(/-----[^-]+-----/g, "").replace(/\s/g, "");
-    const binary = atob(b64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i);
-    }
-    return bytes.buffer;
+  const hexlify = (buffer) => {
+    return Array.from(new Uint8Array(buffer))
+      .map(b => b.toString(16).padStart(2, "0"))
+      .join("");
   };
 
-  // Main encryption function: hybrid encryption + API submission
-  const encryptAndSend = async () => {
-    if (!file) {
-      setStatus("Please select a file first.");
+  async function importRSAPublicKey(pem) {
+    const binaryDer = Uint8Array.from(
+      atob(pem.replace(/-----(BEGIN|END) PUBLIC KEY-----/g, "").replace(/\s/g, "")),
+      c => c.charCodeAt(0)
+    );
+    return crypto.subtle.importKey(
+      "spki",
+      binaryDer.buffer,
+      {
+        name: "RSA-OAEP",
+        hash: "SHA-256"
+      },
+      false,
+      ["encrypt"]
+    );
+  }
+
+  const handleUpload = async () => {
+    if (!file || !publicKey) {
+      setStatus("⚠️ File or RSA key missing.");
       return;
     }
 
-    setTimeTaken(null);
-    setResponseMessage("");
-    const startTime = performance.now();
-
     try {
-      // Generate AES-GCM symmetric key (256-bit)
-      const aesKey = await window.crypto.subtle.generateKey(
+      const fileBuffer = await file.arrayBuffer();
+
+      const aesKey = await crypto.subtle.generateKey(
         { name: "AES-GCM", length: 256 },
         true,
         ["encrypt", "decrypt"]
       );
-      aesCryptoKeyRef.current = aesKey;
 
-      // Export raw key for RSA encryption
-      const rawKey = await window.crypto.subtle.exportKey("raw", aesKey);
-      aesRawKeyRef.current = rawKey;
-
-      // Fetch RSA public key from backend
-      const publicKeyRes = await fetch("http://localhost:8000/get-public-key/");
-      const { public_key } = await publicKeyRes.json();
-
-      // Import public key for RSA-OAEP encryption
-      const importedRSAPublicKey = await window.crypto.subtle.importKey(
-        "spki",
-        pemToBinary(public_key),
-        { name: "RSA-OAEP", hash: "SHA-256" },
-        false,
-        ["encrypt"]
-      );
-
-      // Read file content into ArrayBuffer
-      const fileBuffer = await file.arrayBuffer();
-
-      // Generate AES-GCM IV (nonce)
-      const nonce = window.crypto.getRandomValues(new Uint8Array(12));
-
-      // Encrypt file content using AES-GCM
-      const encryptedContent = await window.crypto.subtle.encrypt(
-        { name: "AES-GCM", iv: nonce },
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const encryptedData = await crypto.subtle.encrypt(
+        { name: "AES-GCM", iv },
         aesKey,
         fileBuffer
       );
 
-      // Combine nonce + ciphertext for transmission
-      const encryptedData = new Uint8Array(nonce.length + encryptedContent.byteLength);
-      encryptedData.set(nonce, 0);
-      encryptedData.set(new Uint8Array(encryptedContent), nonce.length);
-
-      // Generate integrity hash using CryptoJS
-      const timestamp = Date.now().toString();
-      const nonceStr = CryptoJS.lib.WordArray.random(8).toString();
-      const hashInput = CryptoJS.enc.Hex.stringify(CryptoJS.lib.WordArray.create(new Uint8Array(fileBuffer))) + timestamp + nonceStr;
-      const hash = CryptoJS.SHA256(hashInput).toString();
-
-      // Encrypt AES key with RSA public key
-      const encryptedKey = await window.crypto.subtle.encrypt(
+      const rawAES = await crypto.subtle.exportKey("raw", aesKey);
+      const rsaKey = await importRSAPublicKey(publicKey);
+      const encryptedAESKey = await crypto.subtle.encrypt(
         { name: "RSA-OAEP" },
-        importedRSAPublicKey,
-        rawKey
+        rsaKey,
+        rawAES
       );
 
-      // Send encrypted payload to backend
+      const timestamp = Date.now().toString();
+      const nonce = crypto.randomUUID();
+
+      const hexEncoded = hexlify(fileBuffer);
+      const fullString = hexEncoded + timestamp + nonce;
+      const hashBuffer = await crypto.subtle.digest(
+        "SHA-256",
+        new TextEncoder().encode(fullString)
+      );
+
+      const fullEncryptedPayload = new Uint8Array([...iv, ...new Uint8Array(encryptedData)]);
+      const encryptedKeyB64 = await toBase64(encryptedAESKey);
+      const encryptedDataB64 = await toBase64(fullEncryptedPayload);
+
+      const payload = {
+        encrypted_key: encryptedKeyB64,
+        encrypted_data: encryptedDataB64,
+        timestamp,
+        nonce,
+        hash: Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join(""),
+        file_name: file.name,
+        file_type: file.type
+      };
+
+      const startTime = performance.now();
+
       const res = await fetch("http://localhost:8000/upload-encrypted", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Encrypted-Request": "true",
+          "x-encrypted-request": "true"
         },
-        body: JSON.stringify({
-          encrypted_key: btoa(String.fromCharCode(...new Uint8Array(encryptedKey))),
-          encrypted_data: btoa(String.fromCharCode(...encryptedData)),
-          timestamp,
-          nonce: nonceStr,
-          hash,
-          file_name: file.name,
-          file_type: file.type || "application/octet-stream",
-        }),
+        body: JSON.stringify(payload)
       });
 
+      const endTime = performance.now();
+      setRtt(Math.round(endTime - startTime));
+
       const result = await res.json();
+      if (result.status === "OK") {
+        setServerResponse(result);
+        setStatus("✅ File uploaded and decrypted successfully.");
 
-      // If server returns an encrypted response, decrypt it
-      if (result.encrypted_response) {
-        const decryptedMessage = await decryptAES(result.encrypted_response);
-        setResponseMessage(`🔐 Server Message: ${decryptedMessage}`);
+        const encryptedRespBuffer = Uint8Array.from(atob(result.encrypted_response), c => c.charCodeAt(0));
+        const respNonce = encryptedRespBuffer.slice(0, 12);
+        const respCiphertext = encryptedRespBuffer.slice(12, -16);
+        const respTag = encryptedRespBuffer.slice(-16);
+
+        const decryptedAdminBuffer = await crypto.subtle.decrypt(
+          {
+            name: "AES-GCM",
+            iv: respNonce,
+            tagLength: 128
+          },
+          aesKey,
+          new Uint8Array([...respCiphertext, ...respTag])
+        );
+
+        const adminMessage = new TextDecoder().decode(decryptedAdminBuffer);
+        setDecryptedAdminMessage(adminMessage);
       } else {
-        setResponseMessage(JSON.stringify(result));
+        setStatus("❌ Server error: " + (result.error || "Unknown"));
       }
-
-      const endTime = performance.now();
-      setTimeTaken(endTime - startTime);
-      setStatus("✅ Encrypted file sent successfully!");
-    } catch (error) {
-      console.error(error);
-      const endTime = performance.now();
-      setTimeTaken(endTime - startTime);
-      setStatus("❌ Encryption or upload failed.");
+    } catch (err) {
+      setStatus("❌ Upload failed: " + err.message);
     }
   };
 
-  // Optional fallback: Send unencrypted file (testing/debug)
-  const sendUnencrypted = async () => {
+  const handleRawUpload = async () => {
     if (!file) {
-      setStatus("Please select a file first.");
+      setStatus("⚠️ No file selected.");
       return;
     }
 
-    setStatus("Uploading unencrypted file...");
-    setResponseMessage("");
-    const startTime = performance.now();
+    const formData = new FormData();
+    formData.append("file", file);
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
+      const startTime = performance.now();
 
       const res = await fetch("http://localhost:8000/upload-encrypted", {
         method: "POST",
         body: formData,
       });
 
-      const result = await res.json();
-      setResponseMessage(`📤 Server Response: ${JSON.stringify(result, null, 2)}`);
+      const endTime = performance.now();
+      setRtt(Math.round(endTime - startTime));
 
-      const endTime = performance.now();
-      setTimeTaken(endTime - startTime);
-      setStatus("✅ Unencrypted file sent successfully!");
-    } catch (error) {
-      console.error(error);
-      const endTime = performance.now();
-      setTimeTaken(endTime - startTime);
-      setStatus("❌ Upload failed.");
+      const text = await res.text();
+      setStatus("📤 Raw Upload Response: " + text);
+      setServerResponse(null);
+      setDecryptedAdminMessage(null);
+    } catch (err) {
+      setStatus("❌ Raw upload failed: " + err.message);
     }
   };
 
-  // AES-GCM decryption for encrypted server response
-  const decryptAES = async (b64) => {
-    const encryptedData = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-    const nonce = encryptedData.slice(0, 12);
-    const ciphertext = encryptedData.slice(12, -16);
-    const tag = encryptedData.slice(-16);
-
-    // Concatenate ciphertext and tag
-    const combined = new Uint8Array(ciphertext.length + tag.length);
-    combined.set(ciphertext);
-    combined.set(tag, ciphertext.length);
-
-    try {
-      const decrypted = await window.crypto.subtle.decrypt(
-        { name: "AES-GCM", iv: nonce },
-        aesCryptoKeyRef.current,
-        combined
-      );
-      return new TextDecoder().decode(decrypted);
-    } catch {
-      return "Failed to decrypt server message";
-    }
-  };
-
-  // UI Rendering
   return (
-    <div className="panel-container">
-      <h1>Hybrid File Encryptor</h1>
-      <div className="input-section">
-        <input type="file" onChange={handleFileChange} />
-        <button onClick={encryptAndSend} className="action-button">Encrypt & Send</button>
-        <button onClick={sendUnencrypted} className="action-button">Send Direct Data (No Encryption)</button>
+    <div className="App">
+      <h2 className="title">Hybrid Encryption Upload</h2>
+
+      <div className="upload-section">
+        <input
+          type="file"
+          className="file-input"
+          onChange={e => setFile(e.target.files[0])}
+        />
+        <button className="upload-button" onClick={handleUpload} disabled={!file}>
+          Encrypt & Upload
+        </button>
+        <button className="upload-button" onClick={handleRawUpload} disabled={!file}>
+          Upload Without Encryption
+        </button>
       </div>
-      <div className="status-indicator">{status}</div>
-      <div className="timing-box"><strong>Response time:</strong> {(timeTaken/1000).toFixed(2)} seconds</div>
-      {responseMessage && <div className="response-box"><h3>Admin Response</h3><pre>{responseMessage}</pre></div>}
+
+      {status && <p className="status-message">{status}</p>}
+      {rtt !== null && <p className="status-message">⏱️ RTT: {rtt/1000} seconds</p>}
+
+      {serverResponse && (
+        <div className="response-block">
+          <h3>Decrypted File Info:</h3>
+          <ul>
+            <li><strong>Size:</strong> {serverResponse.decrypted_file_info.size} bytes</li>
+          </ul>
+          {decryptedAdminMessage && (
+            <>
+              <h3>🔓 Decrypted Admin Message:</h3>
+              <pre className="decrypted-response">{decryptedAdminMessage}</pre>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
-};
+}
 
 export default HybridEncryptor;

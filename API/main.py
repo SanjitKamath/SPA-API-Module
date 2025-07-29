@@ -16,7 +16,7 @@ latest_decrypted_frontend_message = "No client message yet."
 client_aes_key: bytes = b""
 
 # Directory to store uploaded/received files
-UPLOAD_DIR = "./API/received_files"
+UPLOAD_DIR = "./received_files"
 os.makedirs(UPLOAD_DIR, exist_ok=True)  # Ensure directory exists
 
 # Initialize FastAPI application
