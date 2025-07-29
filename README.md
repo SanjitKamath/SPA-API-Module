@@ -17,26 +17,12 @@ This project demonstrates end-to-end encryption and integrity assurance for file
 
 ---
 
-## Architecture Overview
-
-```
-graph TD
-  A[React Frontend] -- Hybrid Encrypted Payload --> B[FastAPI Backend]
-  B --> C[Decryption Middleware]
-  C --> D[File Saved/Test Logic]
-  D --> C
-  C --> B
-  B --> A[Encrypted Response Returned]
-```
-
----
-
 ## Project Structure
 
 ```
-├── frontend/
+├── SPA/
 │   └── spa.jsx              # Main React file encryption client
-├── backend/
+├── API/
 │   ├── main.py              # FastAPI app setup and routes
 │   ├── encryption_middleware.py  # Middleware for decrypting/verifying data
 │   └── RSA_Key_Gen.py       # Utility (assumed) for RSA key generation
@@ -51,14 +37,11 @@ graph TD
 ### Backend (FastAPI)
 
 ```
-# Set up a virtual environment
-python -m venv venv && source venv/bin/activate
-
 # Install dependencies
-pip install fastapi uvicorn cryptography
+pip install requirements.txt
 
 # Run the server
-python backend/main.py
+python main.py
 ```
 
 By default, FastAPI runs on [`http://localhost:8000`](http://localhost:8000)
@@ -68,10 +51,10 @@ By default, FastAPI runs on [`http://localhost:8000`](http://localhost:8000)
 ```
 cd frontend
 npm install
-npm run dev -- --https  # HTTPS needed for browser crypto API
+npm run dev 
 ```
 
-Access the app at [`https://localhost:3000`](https://localhost:3000)
+Access the app at [`https://localhost:5173`](https://localhost:5173)
 
 ---
 
@@ -81,7 +64,6 @@ Access the app at [`https://localhost:3000`](https://localhost:3000)
 |--------|------------------------|------------------------------------|
 | GET    | `/get-public-key/`     | Returns PEM-formatted RSA public key |
 | POST   | `/upload-encrypted`    | Uploads encrypted payload (JSON)   |
-| POST   | `/upload-unencrypted`  | Uploads raw file (no encryption)   |
 | GET    | `/health`              | Server health check                |
 
 ---
@@ -117,10 +99,10 @@ Access the app at [`https://localhost:3000`](https://localhost:3000)
 ### Implemented
 
 - AES-GCM mode with 128-bit tags
-- RSA-OAEP padding with SHA-256 for secure key wrapping
+- RSA-OAEP padding with SHA-256 for secure AES key wrapping
 - Replay attack protection via timestamp + nonce store
 - Hash-based integrity verification (CryptoJS/SHA-256)
-- Custom header check: `"X-Encrypted-Request": "true"`
+- Custom header check: `"X-Encrypted-Request": "true"` to compare time with and without encryption
 
 
 ## Troubleshooting
@@ -135,15 +117,3 @@ Access the app at [`https://localhost:3000`](https://localhost:3000)
 
 ---
 
-## How to Use It
-
-1. **Copy** everything above into a new file named `README.md`.
-
-2. **Place the file** in the root of your project directory.
-
-3. **Push your project to GitHub**:
-   ```bash
-   git add README.md
-   git commit -m "Add project documentation"
-   git push origin main
-   ```
