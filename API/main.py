@@ -16,7 +16,7 @@ latest_decrypted_frontend_message = "No client message yet."
 client_aes_key: bytes = b""
 
 # Directory to store uploaded/received files
-UPLOAD_DIR = "./received_files"
+UPLOAD_DIR = "./API/received_files"
 os.makedirs(UPLOAD_DIR, exist_ok=True)  # Ensure directory exists
 
 # Initialize FastAPI application
@@ -57,7 +57,7 @@ app.add_middleware(EncryptionMiddleware)
 # Endpoint to receive encrypted file/data (actual logic handled by middleware)
 @app.post("/upload-encrypted")
 async def upload_encrypted(request: Request):
-    return JSONResponse({"status": "Processed by middleware"})
+    return JSONResponse("You have sent a file with no encryption!")
 
 # Simple root endpoint for health or welcome page
 @app.get("/")
